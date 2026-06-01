@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>This or That?</title>
+
+<style>
+body {
+  font-family: Arial;
+  margin: 0;
+  background: #dff5e1;
+  text-align: center;
+}
+h1 {
+  padding: 20px;
+}
+.card {
+  background: white;
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+}
+.choices {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.option {
+  width: 48%;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 8px;
+  border: 3px solid transparent;
+}
+.option:hover {
+  transform: scale(1.05);
+}
+.selected {
+  border: 3px solid #0078D4;
+}
+img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.bar {
+  height: 18px;
+  background: #0078D4;
+  color: white;
+  border-radius: 10px;
+  margin: 5px 0;
+  width: 0%;
+  transition: width 0.5s;
+  font-size: 12px;
+}
+.results {
+  display: block;
+}
+</style>
+</head>
+
+<body>
+
+<h1>This or That?</h1>
+
+<!-- QUESTION 1 -->
+<div class="card">
+  <h3>Toast Preference</h3>
+  <div class="choices">
+    <div id="toast_light" class="option" onclick="vote('toast','light')">
+      <img src="https://images.unsplash.com/photo-1608198093002-ad4e005484ec?auto=format&fit=crop&w=400&q=80">
+      <p><b>Light Toast</b></p>
+    </div>
+    <div id="toast_dark" class="option" onclick="vote('toast','dark')">
+      <img src="https://images.unsplash.com/photo-1549931319-a545dcf3bc73?auto=format&fit=crop&w=400&q=80">
+      <p><b>Dark Toast</b></p>
+    </div>
+  </div>
+  <div id="toast_results" class="results"></div>
+</div>
+
+<!-- QUESTION 2 -->
+<div class="card">
+  <h3>Coffee or Tea</h3>
+  <div class="choices">
+    <div id="drink_coffee" class="option" onclick="vote('drink','coffee')">
+      <img src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80">
+      <p><b>Coffee</b></p>
+    </div>
+    <div id="drink_tea" class="option" onclick="vote('drink','tea')">
+      <img src="https://images.unsplash.com/photo-1511920170033-f8396924c348?auto=format&fit=crop&w=400&q=80">
+      <p><b>Tea</b></p>
+    </div>
+  </div>
+  <div id="drink_results" class="results"></div>
+</div>
+
+<!-- QUESTION 3 -->
+<div class="card">
+  <h3>Beach or Mountains</h3>
+  <div class="choices">
+    <div id="place_beach" class="option" onclick="vote('place','beach')">
+      <img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80">
+      <p><b>Beach</b></p>
+    </div>
+    <div id="place_mountain" class="option" onclick="vote('place','mountain')">
+      <img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=400&q=80">
+      <p><b>Mountains</b></p>
+    </div>
+  </div>
+  <div id="place_results" class="results"></div>
+</div>
+
+<!-- ✅ FIREBASE + LIVE VOTING -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getFirestore, doc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+// Your config
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdTo2AZyAwpqXoStouWrGV0gRmJTODSc",
+  authDomain: "this-or-that-f7dde.firebaseapp.com",
+  projectId: "this-or-that-f7dde",
+  storageBucket: "this-or-that-f7dde.firebasestorage.app",
+  messagingSenderId: "53003348014",
+  appId: "1:53003348014:web:878d7aa43d43e2ac43d7bf"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ✅ Vote function
+async function vote(question, choice) {
+  if (localStorage.getItem(question + "_voted")) return;
+
+  const ref = doc(db, "votes", question);
+
+  await setDoc(ref, {}, { merge: true });
+
+  await updateDoc(ref, {
+    [choice]: increment(1)
+  });
+
+  localStorage.setItem(question + "_voted", choice);
+}
+
+// ✅ Live updates
+function listenToResults(question) {
+  const ref = doc(db, "votes", question);
+
+  onSnapshot(ref, (snap) => {
+    const data = snap.data() || {};
+    let total = 0;
+
+    for (let k in data) total += data[k];
+
+    let html = "";
+
+    for (let k in data) {
+      let percent = total ? Math.round((data[k] / total) * 100) : 0;
+
+      html += `<div>${k}: ${data[k]}</div>`;
+      html += `<div class="bar" style="width:${percent}%">${percent}%</div>`;
+    }
+
+    const resultDiv = document.getElementById(question + "_results");
+    resultDiv.innerHTML = html;
+
+    const voted = localStorage.getItem(question + "_voted");
+    if (voted) {
+      const el = document.getElementById(question + "_" + voted);
+      if (el) el.classList.add("selected");
+    }
+  });
+}
+
+// ✅ Start listeners
+["toast", "drink", "place"].forEach(q => listenToResults(q));
+
+// expose to buttons
+window.vote = vote;
+</script>
+
+</body>
+</html>
