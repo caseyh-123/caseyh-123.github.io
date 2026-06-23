@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>This or That? Aussie Edition</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #fff9e6; /* Soft cream background */
+  text-align: center;
+}
+h1 {
+  padding: 20px;
+  color: #004b23; /* Classic Australian Deep Green */
+}
+.card {
+  display: none;
+  background: white;
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+.card.active {
+  display: block;
+}
+.choices {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.option {
+  width: 48%;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 8px;
+  border: 3px solid transparent;
+  transition: transform 0.2s;
+}
+.option:hover {
+  transform: scale(1.05);
+}
+.selected {
+  border: 3px solid #ffcc00; /* Australian Gold highlight */
+}
+img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.bar-container {
+  margin: 10px 0;
+  text-align: left;
+}
+.bar-label {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.bar {
+  height: 18px;
+  background: #004b23; /* Australian Green progress bar */
+  color: white;
+  border-radius: 10px;
+  width: 0%;
+  transition: width 0.5s;
+  font-size: 12px;
+  text-align: center;
+  line-height: 18px;
+}
+.results {
+  display: block;
+  margin-top: 20px;
+}
+.placeholder-results {
+  font-size: 14px;
+  color: #666;
+  font-style: italic;
+  padding: 10px 0;
+}
+.timer-bar {
+  height: 8px;
+  background: #ffcc00; /* Gold countdown bar */
+  border-radius: 10px;
+  margin: 15px 0;
+  width: 100%;
+  animation: countdown 4s linear forwards;
+  animation-play-state: paused;
+}
+@keyframes countdown {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+.timer-text {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<h1>This or That? Aussie Edition</h1>
+
+<div id="quiz_card" class="card active">
+  <h3 id="question_text">Question 1</h3>
+  <div id="image_container" class="choices"></div>
+  <div id="current_results" class="results"></div>
+  <div id="timer" style="display:none;">
+    <div class="timer-text">Next question in:</div>
+    <div id="timer_bar" class="timer-bar"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getFirestore, doc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+// Firebase config configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdTo2AZyAwpqXoStouWrGV0gRmJTODSc",
+  authDomain: "this-or-that-f7dde.firebaseapp.com",
+  projectId: "this-or-that-f7dde",
+  storageBucket: "this-or-that-f7dde.firebasestorage.app",
+  messagingSenderId: "53003348014",
+  appId: "1:53003348014:web:878d7aa43d43e2ac43d7bf"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Exactly 50 uniquely Australian things
+const questionTexts = [
+  "Sydney or Melbourne?", "Vegemite or Promite?", "Bunnings Snags or Meat Pies?",
+  "Tim Tams or Pods?", "AFL Footy or Rugby League?", "The Outback or The Beach?",
+  "Great Barrier Reef or Uluru?", "Kangaroo or Koala?", "Milo Hot or Milo Cold?",
+  "Gold Coast or Sunshine Coast?", "Pavlova or Lamingtons?", "Chiko Rolls or Dim Sims?",
+  "Flat White or Long Black?", "Holden or Ford Australia?", "AC/DC or INXS?",
+  "Bondi Beach or Byron Bay?", "Sausage Rolls or Party Pies?", "Chicken Schnitty or Chicken Parmi?",
+  "Utes or Muscle Cars?", "Anzac Cookies or Iced Vovos?", "Great Ocean Road or Whitsundays?",
+  "Cricket Boxing Day Test or AFL Grand Final?", "State of Origin or Bledisloe Cup?", "Barbeque Shapes or Pizza Shapes?",
+  "Pub Feed or Fish and Chips?", "Bundaberg Rum or Aussie Beer?", "Flamin' Hot vs Traditional BBQ?",
+  "Tasmania or Rottnest Island?", "Sydney Harbour Bridge or Opera House?", "Blue Mountains or Daintree Rainforest?",
+  "Surfing or Bushwalking?", "Fair Dinkum or No Worries?", "Stubby Holders or Esky?",
+  "Thongs or Barefoot?", "Wombats or Quokkas?", "Fairy Bread or Sausage Sizzle?",
+  "Magpies or Kookaburras?", "Kakadu National Park or Cable Beach?", "Coopers or Carlton Draught?",
+  "RM Williams or Blundstones?", "Kathmandu or Macpac?", "Big Banana or Big Pineapple?",
+  "Splendour in the Grass or Groovin the Moo?", "Macadamia Nuts or Eucalyptus Oil?", "Steve Irwin or Paul Hogan?",
+  "Summer Holidays or Winter Snowfields?", "Lord Howe Island or K'gari Fraser Island?", "Barramundi or Calamari?",
+  "Platypus or Echidna?", "Bushdance or Pub Rock gig?"
+];
+
+const imageTermMap = {
+  "Sydney": "sydney harbour opera", "Melbourne": "melbourne laneway flinders",
+  "Vegemite": "vegemite toast", "Promite": "yeast extract paste",
+  "Bunnings Snags": "sausage sizzle sausage bread", "Meat Pies": "australian meat pie",
+  "Tim Tams": "tim tam biscuits", "Pods": "pods chocolates mars",
+  "AFL Footy": "afl football match", "Rugby League": "nrl rugby match",
+  "The Outback": "australian outback red dirt", "The Beach": "australian beach ocean",
+  "Great Barrier Reef": "great barrier reef coral", "Uluru": "uluru ayers rock",
+  "Kangaroo": "wild kangaroo australia", "Koala": "koala eucalyptus tree",
+  "Milo Hot": "hot chocolate mug", "Milo Cold": "glass chocolate milk ice",
+  "Gold Coast": "gold coast surfers paradise", "Sunshine Coast": "sunshine coast beach",
+  "Pavlova": "pavlova meringue fruit", "Lamingtons": "lamington cake coconut",
+  "Chiko Rolls": "chiko roll fried", "Dim Sims": "fried dim sims",
+  "Flat White": "flat white coffee art", "Long Black": "long black coffee espresso",
+  "Holden": "classic holden commodore", "Ford Australia": "ford falcon ute",
+  "AC/DC": "acdc rock band concert", "INXS": "inxs band rock",
+  "Bondi Beach": "bondi beach sydney", "Byron Bay": "byron bay lighthouse beach",
+  "Sausage Rolls": "australian sausage roll", "Party Pies": "mini party pies",
+  "Chicken Schnitty": "chicken schnitzel chips", "Chicken Parmi": "chicken parmigiana pub",
+  "Utes": "australian ute truck", "Muscle Cars": "holden torana falcon coupe",
+  "Anzac Cookies": "anzac biscuits", "Iced Vovos": "iced vovo biscuits",
+  "Great Ocean Road": "twelve apostles ocean", "Whitsundays": "whitsunday islands whitehaven",
+  "Cricket Boxing Day Test": "mcg cricket match box day", "AFL Grand Final": "afl grand final match mc",
+  "State of Origin": "state of origin rugby", "Bledisloe Cup": "wallabies rugby match",
+  "Barbeque Shapes": "arnotts shapes biscuits barbeque", "Pizza Shapes": "arnotts shapes biscuits pizza",
+  "Pub Feed": "australian pub counter meal", "Fish and Chips": "beach fish and chips paper",
+  "Bundaberg Rum": "bundaberg rum bottle bear", "Aussie Beer": "cold glass aussie beer",
+  "Flamin' Hot": "spicy red chips", "Traditional BBQ": "barbecue grill meat sizzle",
+  "Tasmania": "cradle mountain tasmania", "Rottnest Island": "rottnest island ocean beach",
+  "Sydney Harbour Bridge": "sydney harbour bridge night", "Opera House": "sydney opera house sails",
+  "Blue Mountains": "three sisters blue mountains", "Daintree Rainforest": "daintree rainforest queensland",
+  "Surfing": "australian surfer wave", "Bushwalking": "australian bush trail hiking",
+  "Fair Dinkum": "australian slang flag", "No Worries": "australian beach thumbs up",
+  "Stubby Holders": "stubby holder beer", "Esky": "cooler box esky ice",
+  "Thongs": "australian thongs footwear sandals", "Barefoot": "walking barefoot grass",
+  "Wombats": "australian wombat", "Quokkas": "quokka selfie smiling",
+  "Fairy Bread": "fairy bread sprinkles", "Sausage Sizzle": "bbq sausage sizzle onions",
+  "Magpies": "australian magpie bird", "Kookaburras": "kookaburra sitting branch",
+  "Kakadu National Park": "kakadu national park wetlands", "Cable Beach": "cable beach camels sunset",
+  "Coopers": "coopers pale ale beer", "Carlton Draught": "carlton draught pub tap",
+  "RM Williams": "leather boots chelsea", "Blundstones": "blundstone work boots",
+  "Kathmandu": "puffer jacket outdoor", "Macpac": "hiking backpack gear",
+  "Big Banana": "the big banana coffs harbour", "Big Pineapple": "the big pineapple sunshine coast",
+  "Splendour in the Grass": "music festival crowd stage mud", "Groovin the Moo": "regional music festival crowd",
+  "Macadamia Nuts": "macadamia nuts bowl", "Eucalyptus Oil": "eucalyptus oil bottle leaves",
+  "Steve Irwin": "steve irwin crocodile hunter", "Paul Hogan": "crocodile dundee hat movie",
+  "Summer Holidays": "australian summer caravan beach", "Winter Snowfields": "perisher thredbo snow fields",
+  "Lord Howe Island": "lord howe island mountain ocean", "K'gari Fraser Island": "fraser island perched lake sand",
+  "Barramundi": "cooked barramundi fish plate", "Calamari": "salt and pepper calamari lemon",
+  "Platypus": "platypus swimming water", "Echidna": "australian echidna spikes",
+  "Bushdance": "australian outback bush dance barn", "Pub Rock gig": "aussie pub rock band crowd"
+};
+
+function lookupImageTerm(label) {
+  return imageTermMap[label] || label.replace(/\s+/g, "-");
+}
+
+function makeOptionsFromQuestion(text) {
+  const clean = text.trim().replace(/[?!.]+$/, "");
+  const parts = clean.split(/\s+or\s+/i).map((part) => part.trim());
+  return parts.slice(0, 2).map((label, idx) => {
+    const optionId = label.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "");
+    const term = lookupImageTerm(label);
+    return {
+      id: optionId || `aus-opt${idx + 1}`,
+      label,
+      imageUrl: `https://loremflickr.com/400/300/${encodeURIComponent(term)}?random=${idx}`,
+      fallbackUrl: `https://picsum.photos/seed/${encodeURIComponent(term)}/400/300`
+    };
+  });
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+const questions = shuffleArray(questionTexts.map((text, i) => ({
+  id: `aus_question${i + 1}`,
+  question: text,
+  options: makeOptionsFromQuestion(text)
+})));
+
+let currentQuestionIndex = 0;
+let currentUnsubscribe = null;
+
+async function vote(questionId, choice) {
+  if (localStorage.getItem(questionId + "_voted")) return;
+
+  localStorage.setItem(questionId + "_voted", choice);
+
+  const timerDiv = document.getElementById("timer");
+  const timerBar = document.getElementById("timer_bar");
+  if (timerDiv) timerDiv.style.display = "block";
+  if (timerBar) {
+    timerBar.style.animation = "none";
+    timerBar.offsetWidth; // Trigger reflow
+    timerBar.style.animation = "countdown 4s linear forwards";
+    timerBar.style.animationPlayState = "running";
+  }
+
+  const nextQuestionIndex = (currentQuestionIndex + 1) % questions.length;
+  setTimeout(() => {
+    currentQuestionIndex = nextQuestionIndex;
+    showQuestion(currentQuestionIndex);
+    if (timerDiv) timerDiv.style.display = "none";
+    if (timerBar) timerBar.style.animationPlayState = "paused";
+  }, 4000);
+
+  try {
+    const ref = doc(db, "votes", questionId);
+    await setDoc(ref, {}, { merge: true });
+    await updateDoc(ref, {
+      [choice]: increment(1)
+    });
+  } catch (error) {
+    console.error("Vote update failed:", error);
+  }
+}
+
+function listenToResults(questionId) {
+  if (currentUnsubscribe) currentUnsubscribe();
+
+  const question = questions.find(q => q.id === questionId);
+  if (!question) return;
+
+  const ref = doc(db, "votes", questionId);
+  currentUnsubscribe = onSnapshot(ref, (snap) => {
+    const resultDiv = document.getElementById("current_results");
+    if (!resultDiv) return;
+
+    const voted = localStorage.getItem(questionId + "_voted");
+
+    if (!voted) {
+      resultDiv.innerHTML = `<div class="placeholder-results">Vote to see live results!</div>`;
+      return;
+    }
+
+    const data = snap.data() || {};
+    let total = 0;
+    question.options.forEach(opt => {
+      total += data[opt.id] || 0;
+    });
+
+    let html = "";
+    question.options.forEach(opt => {
+      const votes = data[opt.id] || 0;
+      const percent = total ? Math.round((votes / total) * 100) : 0;
+      
+      html += `<div class="bar-container">`;
+      html += `  <div class="bar-label"><strong>${opt.label}</strong>: ${votes} vote${votes === 1 ? '' : 's'}</div>`;
+      html += `  <div class="bar" style="width:${percent}%">${percent}%</div>`;
+      html += `</div>`;
+    });
+
+    resultDiv.innerHTML = html;
+
+    const selectedEl = document.getElementById(`${questionId}_${voted}`);
+    if (selectedEl) selectedEl.classList.add("selected");
+  });
+}
+
+function showQuestion(index) {
+  const question = questions[index];
+  const questionText = document.getElementById("question_text");
+  const imageContainer = document.getElementById("image_container");
+  const resultDiv = document.getElementById("current_results");
+  const timerDiv = document.getElementById("timer");
+  const timerBar = document.getElementById("timer_bar");
+
+  if (!questionText || !imageContainer || !resultDiv || !timerDiv || !timerBar) return;
+
+  questionText.textContent = question.question;
+  imageContainer.innerHTML = "";
+  resultDiv.innerHTML = "Loading...";
+  timerDiv.style.display = "none";
+  timerBar.style.animation = "none";
+  timerBar.offsetWidth; // Trigger reflow
+  timerBar.style.animation = "countdown 4s linear forwards";
+  timerBar.style.animationPlayState = "paused";
+
+  question.options.forEach((optionData) => {
+    const option = document.createElement("div");
+    option.className = "option";
+    option.id = `${question.id}_${optionData.id}`;
+    option.onclick = () => vote(question.id, optionData.id);
+
+    const img = document.createElement("img");
+    img.src = optionData.imageUrl;
+    img.alt = optionData.label;
+    img.dataset.fallbackUrl = optionData.fallbackUrl;
+    img.dataset.fallbackTried = "false";
+    img.onerror = () => {
+      if (img.dataset.fallbackTried === "false" && img.dataset.fallbackUrl) {
+        img.dataset.fallbackTried = "true";
+        img.src = img.dataset.fallbackUrl;
+        return;
+      }
+      img.onerror = null;
+      img.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
+          <rect width="100%" height="100%" rx="20" ry="20" fill="#999999" />
+          <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
+                font-family="Arial, sans-serif" font-size="24" fill="#ffffff">
+            Image unavailable
+          </text>
+        </svg>`)}`;
+    };
+    option.appendChild(img);
+
+    const label = document.createElement("p");
+    label.innerHTML = `<b>${optionData.label}</b>`;
+    option.appendChild(label);
+
+    imageContainer.appendChild(option);
+  });
+
+  const voted = localStorage.getItem(question.id + "_voted");
+  if (voted) {
+    const selectedEl = document.getElementById(`${question.id}_${voted}`);
+    if (selectedEl) selectedEl.classList.add("selected");
+  }
+
+  listenToResults(question.id);
+}
+
+showQuestion(currentQuestionIndex);
+window.vote = vote;
+</script>
+
+</body>
+</html>

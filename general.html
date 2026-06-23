@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>This or That?</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #dff5e1;
+  text-align: center;
+}
+h1 {
+  padding: 20px;
+}
+.card {
+  display: none;
+  background: white;
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+}
+.card.active {
+  display: block;
+}
+.choices {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.option {
+  width: 48%;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 8px;
+  border: 3px solid transparent;
+  transition: transform 0.2s;
+}
+.option:hover {
+  transform: scale(1.05);
+}
+.selected {
+  border: 3px solid #0078D4;
+}
+img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.bar-container {
+  margin: 10px 0;
+  text-align: left;
+}
+.bar-label {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.bar {
+  height: 18px;
+  background: #0078D4;
+  color: white;
+  border-radius: 10px;
+  width: 0%;
+  transition: width 0.5s;
+  font-size: 12px;
+  text-align: center;
+  line-height: 18px;
+}
+.results {
+  display: block;
+  margin-top: 20px;
+}
+.placeholder-results {
+  font-size: 14px;
+  color: #666;
+  font-style: italic;
+  padding: 10px 0;
+}
+.timer-bar {
+  height: 8px;
+  background: #FF6B35;
+  border-radius: 10px;
+  margin: 15px 0;
+  width: 100%;
+  animation: countdown 5s linear forwards;
+  animation-play-state: paused;
+}
+@keyframes countdown {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+.timer-text {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<h1>This or That?</h1>
+
+<div id="quiz_card" class="card active">
+  <h3 id="question_text">Question 1</h3>
+  <div id="image_container" class="choices"></div>
+  <div id="current_results" class="results"></div>
+  <div id="timer" style="display:none;">
+    <div class="timer-text">Next question in:</div>
+    <div id="timer_bar" class="timer-bar"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getFirestore, doc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+// Firebase config configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdTo2AZyAwpqXoStouWrGV0gRmJTODSc",
+  authDomain: "this-or-that-f7dde.firebaseapp.com",
+  projectId: "this-or-that-f7dde",
+  storageBucket: "this-or-that-f7dde.firebasestorage.app",
+  messagingSenderId: "53003348014",
+  appId: "1:53003348014:web:878d7aa43d43e2ac43d7bf"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const questionTexts = [
+  "Pizza or Burgers?", "Tacos or Nachos?", "French fries or Onion rings?", "Potato chips or Pretzels?",
+  "Popcorn or Peanuts?", "Mozzarella sticks or Jalapeño poppers?", "Chicken nuggets or Chicken wings?",
+  "Hot dogs or Corn dogs?", "Pancakes or Waffles?", "Bacon or Sausage?", "Chocolate or Vanilla?",
+  "Cake or Pie?", "Donuts or Muffins?", "Cookies or Brownies?", "Ice cream or Frozen yogurt?",
+  "Gummy bears or Sour worms?", "Croissants or Bagels?", "White chocolate or Dark chocolate?",
+  "Apple pie or Pumpkin pie?", "Cheesecake or Tiramisu?", "Coffee or Tea?", "Hot chocolate or Apple cider?",
+  "Coca-Cola or Pepsi?", "Orange juice or Apple juice?", "Milkshakes or Smoothies?", "Ketchup or Mustard?",
+  "Mayonnaise or Guacamole?", "Hot sauce or BBQ sauce?", "Still water or Sparkling water?",
+  "Iced coffee or Hot coffee?", "Mountains or Beaches?", "Forests or Deserts?", "Lakes or Rivers?",
+  "Waterfalls or Canyons?", "Islands or Caves?", "Oceans or Ponds?", "Volcanoes or Glaciers?",
+  "Swamps or Prairies?", "Cliffs or Dunes?", "Hot springs or Icebergs?", "Snow or Rain?",
+  "Sunsets or Sunrises?", "Clouds or Fog?", "Hail or Sleet?", "Rainbows or Lightning?",
+  "Full moon or Crescent moon?", "Clear skies or Overcast skies?", "Mud or Puddles?", "Icicles or Snowflakes?",
+  "Dew or Frost?", "Dogs or Cats?", "Puppies or Kittens?", "Parrots or Canaries?", "Goldfish or Betta fish?",
+  "Rabbits or Guinea pigs?", "Horses or Donkeys?", "Chickens or Ducks?", "Pigs or Goats?", "Sheep or Cows?",
+  "Ferrets or Hamsters?", "Lions or Tigers?", "Bears or Wolves?", "Elephants or Giraffes?", "Dolphins or Whales?",
+  "Sharks or Octopuses?", "Eagles or Hawks?", "Penguins or Puffins?", "Owls or Ravens?", "Frogs or Toads?",
+  "Turtles or Tortoises?", "Roses or Sunflowers?", "Oak trees or Palm trees?", "Cactus or Fern?",
+  "Butterflies or Dragonflies?", "Ladybugs or Bumblebees?", "Mushrooms or Moss?", "Pinecones or Acorns?",
+  "Grass or Clover?", "Seaweed or Coral?", "Ivy or Vines?", "Couch or Armchair?", "Bed or Hammock?",
+  "Desk lamp or Ceiling light?", "Blinds or Curtains?", "Rugs or Hardwood floors?", "Shower or Bathtub?",
+  "Fireplace or Radiator?", "Mirror or Painting?", "Pillows or Blankets?", "Clock or Calendar?",
+  "Smartphone or Laptop?", "Headphones or Speakers?", "Tablet or Desktop PC?", "Watch or Smartwatch?",
+  "Pen or Pencil?", "Notebook or Binder?", "Backpack or Briefcase?", "Mug or Thermos?", "Umbrella or Raincoat?",
+  "Wallet or Purse?", "Paperback books or Hardcover books?", "Vinyl records or CDs?", "Magazines or Newspapers?",
+  "Comic books or Graphic novels?", "Television or Projector?", "Movie theater screen or Home TV?",
+  "Board games or Card games?", "Video game console or Gaming PC?", "Controller or Keyboard & Mouse?",
+  "Posters or Framed photos?", "Acoustic guitar or Electric guitar?", "Piano or Drums?", "Violin or Flute?",
+  "Skyscraper or Cabin?", "Castle or Palace?", "Bridge or Tunnel?", "Brick wall or Stone wall?",
+  "Fountain or Statue?", "Greenhouse or Gazebo?", "Ferris wheel or Rollercoaster?", "T-shirt or Button-down shirt?",
+  "Jeans or Sweatpants?", "Hoodie or Sweater?", "Shorts or Pants?", "Leather jacket or Denim jacket?",
+  "Suit or Tuxedo?", "Dress or Skirt?", "Tank top or Polo shirt?", "Overalls or Jumpsuit?", "Winter coat or Windbreaker?",
+  "Sneakers or Boots?", "Sandals or Slippers?", "High heels or Flats?", "Baseball cap or Beanie?",
+  "Sunglasses or Eyeglasses?", "Scarf or Gloves?", "Ring or Necklace?", "Bracelet or Earrings?", "Belt or Suspenders?",
+  "Socks or Barefoot?", "Sedan or SUV?", "Sports car or Truck?", "Motorcycle or Scooter?", "Bicycle or Skateboard?",
+  "Bus or Train?", "RV (Motorhome) or Camper van?", "Convertible or Hardtop?", "Electric car or Gas car?",
+  "Tractor or Bulldozer?", "Limousine or Taxi?", "Airplane or Helicopter?", "Speedboat or Sailboat?",
+  "Cruise ship or Submarine?", "Hot air balloon or Blimp?", "Jet ski or Kayak?", "Ferry or Yacht?", "Canoe or Raft?",
+  "Cargo ship or Fishing boat?", "Parachute or Hang glider?", "Rocket or Space shuttle?", "Soccer ball or Football?",
+  "Basketball or Baseball?", "Tennis racket or Ping-pong paddle?", "Bowling ball or Golf club?", "Ice skates or Rollerblades?",
+  "Dumbbell or Kettlebell?", "Skis or Snowboard?", "Dartboard or Pool table?", "Surfboard or Wakeboard?",
+  "Boxing gloves or Punching bag?", "Wood or Metal?", "Glass or Plastic?", "Brick or Concrete?", "Marble or Granite?",
+  "Leather or Canvas?", "Silk or Velvet?", "Denim or Cotton?", "Gold or Silver?", "Sand or Gravel?", "Copper or Bronze?",
+  "Coins or Paper bills?", "Key or Combination lock?", "Candle or Flashlight?", "Soap bar or Liquid soap?",
+  "Toothbrush or Electric toothbrush?", "Pillowcase or Bed sheet?", "Stamp or Sticker?", "Bubble wrap or Packing peanuts?",
+  "Rope or Chain?", "Scissors or Pocket knife?", "Window or Door?", "Stairs or Elevator?", "Porch or Balcony?",
+  "Fence or Wall?", "Carpet or Tile?", "Escalator or Moving walkway?", "Chimney or Skylight?", "Bench or Picnic table?",
+  "Neon sign or Billboard?", "Chandelier or Lava lamp?"
+];
+
+const imageTermMap = {
+  "Pizza": "pizza", "Burgers": "burger", "Tacos": "tacos", "Nachos": "nachos", "French fries": "french fries",
+  "Onion rings": "onion rings", "Potato chips": "potato chips", "Pretzels": "pretzels", "Popcorn": "popcorn",
+  "Peanuts": "peanuts", "Mozzarella sticks": "mozzarella sticks", "Jalapeño poppers": "jalapeno poppers",
+  "Chicken nuggets": "chicken nuggets", "Chicken wings": "chicken wings", "Hot dogs": "hot dogs", "Corn dogs": "corn dogs",
+  "Pancakes": "pancakes", "Waffles": "waffles", "Bacon": "bacon", "Sausage": "sausage", "Chocolate": "chocolate",
+  "Vanilla": "vanilla", "Cake": "cake", "Pie": "pie", "Donuts": "donuts", "Muffins": "muffins", "Cookies": "cookies",
+  "Brownies": "brownies", "Ice cream": "ice cream", "Frozen yogurt": "frozen yogurt", "Gummy bears": "gummy bears",
+  "Sour worms": "sour candy", "Croissants": "croissants", "Bagels": "bagels", "White chocolate": "white chocolate",
+  "Dark chocolate": "dark chocolate", "Apple pie": "apple pie", "Pumpkin pie": "pumpkin pie", "Cheesecake": "cheesecake",
+  "Tiramisu": "tiramisu", "Coffee": "coffee", "Tea": "tea", "Hot chocolate": "hot chocolate", "Apple cider": "apple cider",
+  "Coca-Cola": "coca cola", "Pepsi": "pepsi", "Orange juice": "orange juice", "Apple juice": "apple juice",
+  "Milkshakes": "milkshakes", "Smoothies": "smoothies", "Ketchup": "ketchup", "Mustard": "mustard", "Mayonnaise": "mayonnaise",
+  "Guacamole": "guacamole", "Hot sauce": "hot sauce", "BBQ sauce": "bbq sauce", "Still water": "still water",
+  "Sparkling water": "sparkling water", "Iced coffee": "iced coffee", "Hot coffee": "hot coffee", "Mountains": "mountains",
+  "Beaches": "beaches", "Forests": "forests", "Deserts": "desert", "Lakes": "lakes", "Rivers": "rivers",
+  "Waterfalls": "waterfalls", "Canyons": "canyons", "Islands": "islands", "Caves": "caves", "Oceans": "ocean",
+  "Ponds": "pond", "Volcanoes": "volcano", "Glaciers": "glacier", "Swamps": "swamp", "Prairies": "prairie",
+  "Cliffs": "cliff", "Dunes": "sand dunes", "Hot springs": "hot springs", "Icebergs": "iceberg", "Snow": "snow",
+  "Rain": "rain", "Sunsets": "sunset", "Sunrises": "sunrise", "Clouds": "clouds", "Fog": "fog", "Hail": "hail",
+  "Sleet": "sleet", "Rainbows": "rainbow", "Lightning": "lightning", "Full moon": "full moon", "Crescent moon": "crescent moon",
+  "Clear skies": "clear skies", "Overcast skies": "overcast sky", "Mud": "mud", "Puddles": "puddle", "Icicles": "icicles",
+  "Snowflakes": "snowflakes", "Dew": "dewdrops", "Frost": "frost", "Dogs": "dog", "Cats": "cat", "Puppies": "puppies",
+  "Kittens": "kittens", "Parrots": "parrot", "Canaries": "canary", "Goldfish": "goldfish", "Betta fish": "betta fish",
+  "Rabbits": "rabbit", "Guinea pigs": "guinea pig", "Horses": "horse", "Donkeys": "donkey", "Chickens": "chicken",
+  "Ducks": "duck", "Pigs": "pig", "Goats": "goat", "Sheep": "sheep", "Cows": "cow", "Ferrets": "ferret",
+  "Hamsters": "hamster", "Lions": "lion", "Tigers": "tiger", "Bears": "bear", "Wolves": "wolf", "Elephants": "elephant",
+  "Giraffes": "giraffe", "Dolphins": "dolphin", "Whales": "whale", "Sharks": "shark", "Octopuses": "octopus",
+  "Eagles": "eagle", "Hawks": "hawk", "Penguins": "penguin", "Puffins": "puffin", "Owls": "owl", "Ravens": "raven",
+  "Frogs": "frog", "Toads": "toad", "Turtles": "turtle", "Tortoises": "tortoise", "Roses": "roses", "Sunflowers": "sunflowers",
+  "Oak trees": "oak tree", "Palm trees": "palm tree", "Cactus": "cactus", "Fern": "fern", "Butterflies": "butterfly",
+  "Dragonflies": "dragonfly", "Ladybugs": "ladybug", "Bumblebees": "bumblebee", "Mushrooms": "mushroom", "Moss": "moss",
+  "Pinecones": "pinecone", "Acorns": "acorn", "Grass": "grass", "Clover": "clover", "Seaweed": "seaweed",
+  "Coral": "coral", "Ivy": "ivy", "Vines": "vines", "Couch": "couch", "Armchair": "armchair", "Bed": "bed",
+  "Hammock": "hammock", "Desk lamp": "desk lamp", "Ceiling light": "ceiling light", "Blinds": "window blinds",
+  "Curtains": "curtains", "Rugs": "rug", "Hardwood floors": "hardwood floor", "Shower": "shower", "Bathtub": "bathtub",
+  "Fireplace": "fireplace", "Radiator": "radiator", "Mirror": "mirror", "Painting": "painting", "Pillows": "pillows",
+  "Blankets": "blankets", "Clock": "clock", "Calendar": "calendar", "Smartphone": "smartphone", "Laptop": "laptop",
+  "Headphones": "headphones", "Speakers": "speakers", "Tablet": "tablet", "Desktop PC": "desktop computer",
+  "Watch": "watch", "Smartwatch": "smartwatch", "Pen": "pen", "Pencil": "pencil", "Notebook": "notebook",
+  "Binder": "binder", "Backpack": "backpack", "Briefcase": "briefcase", "Mug": "mug", "Thermos": "thermos",
+  "Umbrella": "umbrella", "Raincoat": "raincoat", "Wallet": "wallet", "Purse": "purse", "Paperback books": "paperback books",
+  "Hardcover books": "hardcover books", "Vinyl records": "vinyl records", "CDs": "cds", "Magazines": "magazines",
+  "Newspapers": "newspapers", "Comic books": "comic books", "Graphic novels": "graphic novels", "Television": "television",
+  "Projector": "projector", "Movie theater screen": "movie theater screen", "Home TV": "home television",
+  "Board games": "board games", "Card games": "card games", "Video game console": "video game console",
+  "Gaming PC": "gaming pc", "Controller": "game controller", "Keyboard & Mouse": "keyboard and mouse",
+  "Posters": "posters", "Framed photos": "framed photos", "Acoustic guitar": "acoustic guitar",
+  "Electric guitar": "electric guitar", "Piano": "piano", "Drums": "drums", "Violin": "violin", "Flute": "flute",
+  "Skyscraper": "skyscraper", "Cabin": "cabin", "Castle": "castle", "Palace": "palace", "Bridge": "bridge",
+  "Tunnel": "tunnel", "Brick wall": "brick wall", "Stone wall": "stone wall", "Fountain": "fountain", "Statue": "statue",
+  "Greenhouse": "greenhouse", "Gazebo": "gazebo", "Ferris wheel": "ferris wheel", "Rollercoaster": "roller coaster",
+  "T-shirt": "t-shirt", "Button-down shirt": "button down shirt", "Jeans": "jeans", "Sweatpants": "sweatpants",
+  "Hoodie": "hoodie", "Sweater": "sweater", "Shorts": "shorts", "Pants": "pants", "Leather jacket": "leather jacket",
+  "Denim jacket": "denim jacket", "Suit": "suit", "Tuxedo": "tuxedo", "Dress": "dress", "Skirt": "skirt",
+  "Tank top": "tank top", "Polo shirt": "polo shirt", "Overalls": "overalls", "Jumpsuit": "jumpsuit",
+  "Winter coat": "winter coat", "Windbreaker": "windbreaker", "Sneakers": "sneakers", "Boots": "boots",
+  "Sandals": "sandals", "Slippers": "slippers", "High heels": "high heels", "Flats": "flats", "Baseball cap": "baseball cap",
+  "Beanie": "beanie", "Sunglasses": "sunglasses", "Eyeglasses": "eyeglasses", "Scarf": "scarf", "Gloves": "gloves",
+  "Ring": "ring", "Necklace": "necklace", "Bracelet": "bracelet", "Earrings": "earrings", "Belt": "belt",
+  "Suspenders": "suspenders", "Socks": "socks", "Barefoot": "barefoot", "Sedan": "sedan car", "SUV": "suv",
+  "Sports car": "sports car", "Truck": "truck", "Motorcycle": "motorcycle", "Scooter": "scooter", "Bicycle": "bicycle",
+  "Skateboard": "skateboard", "Bus": "bus", "Train": "train", "RV (Motorhome)": "rv motorhome", "Camper van": "camper van",
+  "Convertible": "convertible car", "Hardtop": "hardtop car", "Electric car": "electric car", "Gas car": "gas car",
+  "Tractor": "tractor", "Bulldozer": "bulldozer", "Limousine": "limousine", "Taxi": "taxi", "Airplane": "airplane",
+  "Helicopter": "helicopter", "Speedboat": "speedboat", "Sailboat": "sailboat", "Cruise ship": "cruise ship",
+  "Submarine": "submarine", "Hot air balloon": "hot air balloon", "Blimp": "blimp", "Jet ski": "jet ski",
+  "Kayak": "kayak", "Ferry": "ferry", "Yacht": "yacht", "Canoe": "canoe", "Raft": "raft", "Cargo ship": "cargo ship",
+  "Fishing boat": "fishing boat", "Parachute": "parachute", "Hang glider": "hang glider", "Rocket": "rocket",
+  "Space shuttle": "space shuttle", "Soccer ball": "soccer ball", "Football": "football", "Basketball": "basketball",
+  "Baseball": "baseball", "Tennis racket": "tennis racket", "Ping-pong paddle": "ping pong paddle",
+  "Bowling ball": "bowling ball", "Golf club": "golf club", "Ice skates": "ice skates", "Rollerblades": "rollerblades",
+  "Dumbbell": "dumbbell", "Kettlebell": "kettlebell", "Skis": "skis", "Snowboard": "snowboard", "Dartboard": "dartboard",
+  "Pool table": "pool table", "Surfboard": "surfboard", "Wakeboard": "wakeboard", "Boxing gloves": "boxing gloves",
+  "Punching bag": "punching bag", "Wood": "wood", "Metal": "metal", "Glass": "glass", "Plastic": "plastic",
+  "Brick": "brick", "Concrete": "concrete", "Marble": "marble", "Granite": "granite", "Leather": "leather",
+  "Canvas": "canvas", "Silk": "silk", "Velvet": "velvet", "Denim": "denim", "Cotton": "cotton", "Gold": "gold",
+  "Silver": "silver", "Sand": "sand", "Gravel": "gravel", "Copper": "copper", "Bronze": "bronze", "Coins": "coins",
+  "Paper bills": "paper money", "Key": "key", "Combination lock": "combination lock", "Candle": "candle",
+  "Flashlight": "flashlight", "Soap bar": "soap bar", "Liquid soap": "liquid soap", "Toothbrush": "toothbrush",
+  "Electric toothbrush": "electric toothbrush", "Pillowcase": "pillowcase", "Bed sheet": "bedsheet", "Stamp": "stamp",
+  "Sticker": "sticker", "Bubble wrap": "bubble wrap", "Packing peanuts": "packing peanuts", "Rope": "rope",
+  "Chain": "chain", "Scissors": "scissors", "Pocket knife": "pocket knife", "Window": "window", "Door": "door",
+  "Stairs": "stairs", "Elevator": "elevator", "Porch": "porch", "Balcony": "balcony", "Fence": "fence",
+  "Wall": "wall", "Carpet": "carpet", "Tile": "tile", "Escalator": "escalator", "Moving walkway": "moving walkway",
+  "Chimney": "chimney", "Skylight": "skylight", "Bench": "bench", "Picnic table": "picnic table",
+  "Neon sign": "neon sign", "Billboard": "billboard", "Chandelier": "chandelier", "Lava lamp": "lava lamp"
+};
+
+function lookupImageTerm(label) {
+  return imageTermMap[label] || label.replace(/\s+/g, "-");
+}
+
+function makeOptionsFromQuestion(text) {
+  const clean = text.trim().replace(/[?!.]+$/, "");
+  const parts = clean.split(/\s+or\s+/i).map((part) => part.trim());
+  return parts.slice(0, 2).map((label, idx) => {
+    const optionId = label.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "");
+    const term = lookupImageTerm(label);
+    return {
+      id: optionId || `option${idx + 1}`,
+      label,
+      imageUrl: `https://loremflickr.com/400/300/${encodeURIComponent(term)}?random=${idx}`,
+      fallbackUrl: `https://picsum.photos/seed/${encodeURIComponent(term)}/400/300`
+    };
+  });
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+const questions = shuffleArray(questionTexts.map((text, i) => ({
+  id: `question${i + 1}`,
+  question: text,
+  options: makeOptionsFromQuestion(text)
+})));
+
+let currentQuestionIndex = 0;
+let currentUnsubscribe = null;
+
+async function vote(questionId, choice) {
+  if (localStorage.getItem(questionId + "_voted")) return;
+
+  localStorage.setItem(questionId + "_voted", choice);
+
+  const timerDiv = document.getElementById("timer");
+  const timerBar = document.getElementById("timer_bar");
+  if (timerDiv) timerDiv.style.display = "block";
+  if (timerBar) {
+    timerBar.style.animation = "none";
+    timerBar.offsetWidth; // Trigger reflow
+    timerBar.style.animation = "countdown 5s linear forwards";
+    timerBar.style.animationPlayState = "running";
+  }
+
+  const nextQuestionIndex = (currentQuestionIndex + 1) % questions.length;
+  setTimeout(() => {
+    currentQuestionIndex = nextQuestionIndex;
+    showQuestion(currentQuestionIndex);
+    if (timerDiv) timerDiv.style.display = "none";
+    if (timerBar) timerBar.style.animationPlayState = "paused";
+  }, 5000);
+
+  try {
+    const ref = doc(db, "votes", questionId);
+    await setDoc(ref, {}, { merge: true });
+    await updateDoc(ref, {
+      [choice]: increment(1)
+    });
+  } catch (error) {
+    console.error("Vote update failed:", error);
+  }
+}
+
+function listenToResults(questionId) {
+  if (currentUnsubscribe) currentUnsubscribe();
+
+  const question = questions.find(q => q.id === questionId);
+  if (!question) return;
+
+  const ref = doc(db, "votes", questionId);
+  currentUnsubscribe = onSnapshot(ref, (snap) => {
+    const resultDiv = document.getElementById("current_results");
+    if (!resultDiv) return;
+
+    // Condition: Check if user has already voted on this specific question
+    const voted = localStorage.getItem(questionId + "_voted");
+
+    if (!voted) {
+      // Keep metrics hidden if no vote has been cast
+      resultDiv.innerHTML = `<div class="placeholder-results">Vote to see live results!</div>`;
+      return;
+    }
+
+    // Parse incoming data if voted
+    const data = snap.data() || {};
+    let total = 0;
+    question.options.forEach(opt => {
+      total += data[opt.id] || 0;
+    });
+
+    let html = "";
+    question.options.forEach(opt => {
+      const votes = data[opt.id] || 0;
+      const percent = total ? Math.round((votes / total) * 100) : 0;
+      
+      html += `<div class="bar-container">`;
+      html += `  <div class="bar-label"><strong>${opt.label}</strong>: ${votes} vote${votes === 1 ? '' : 's'}</div>`;
+      html += `  <div class="bar" style="width:${percent}%">${percent}%</div>`;
+      html += `</div>`;
+    });
+
+    resultDiv.innerHTML = html;
+
+    const selectedEl = document.getElementById(`${questionId}_${voted}`);
+    if (selectedEl) selectedEl.classList.add("selected");
+  });
+}
+
+function showQuestion(index) {
+  const question = questions[index];
+  const questionText = document.getElementById("question_text");
+  const imageContainer = document.getElementById("image_container");
+  const resultDiv = document.getElementById("current_results");
+  const timerDiv = document.getElementById("timer");
+  const timerBar = document.getElementById("timer_bar");
+
+  if (!questionText || !imageContainer || !resultDiv || !timerDiv || !timerBar) return;
+
+  questionText.textContent = question.question;
+  imageContainer.innerHTML = "";
+  resultDiv.innerHTML = "Loading...";
+  timerDiv.style.display = "none";
+  timerBar.style.animation = "none";
+  timerBar.offsetWidth; // Trigger reflow
+  timerBar.style.animation = "countdown 5s linear forwards";
+  timerBar.style.animationPlayState = "paused";
+
+  question.options.forEach((optionData) => {
+    const option = document.createElement("div");
+    option.className = "option";
+    option.id = `${question.id}_${optionData.id}`;
+    option.onclick = () => vote(question.id, optionData.id);
+
+    const img = document.createElement("img");
+    img.src = optionData.imageUrl;
+    img.alt = optionData.label;
+    img.dataset.fallbackUrl = optionData.fallbackUrl;
+    img.dataset.fallbackTried = "false";
+    img.onerror = () => {
+      if (img.dataset.fallbackTried === "false" && img.dataset.fallbackUrl) {
+        img.dataset.fallbackTried = "true";
+        img.src = img.dataset.fallbackUrl;
+        return;
+      }
+      img.onerror = null;
+      img.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
+          <rect width="100%" height="100%" rx="20" ry="20" fill="#999999" />
+          <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
+                font-family="Arial, sans-serif" font-size="24" fill="#ffffff">
+            Image unavailable
+          </text>
+        </svg>`)}`;
+    };
+    option.appendChild(img);
+
+    const label = document.createElement("p");
+    label.innerHTML = `<b>${optionData.label}</b>`;
+    option.appendChild(label);
+
+    imageContainer.appendChild(option);
+  });
+
+  const voted = localStorage.getItem(question.id + "_voted");
+  if (voted) {
+    const selectedEl = document.getElementById(`${question.id}_${voted}`);
+    if (selectedEl) selectedEl.classList.add("selected");
+  }
+
+  listenToResults(question.id);
+}
+
+showQuestion(currentQuestionIndex);
+window.vote = vote;
+</script>
+
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>This or That? American Edition</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f0f4f8;
+  text-align: center;
+}
+h1 {
+  padding: 20px;
+  color: #0a2540;
+}
+.card {
+  display: none;
+  background: white;
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+.card.active {
+  display: block;
+}
+.choices {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.option {
+  width: 48%;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 8px;
+  border: 3px solid transparent;
+  transition: transform 0.2s;
+}
+.option:hover {
+  transform: scale(1.05);
+}
+.selected {
+  border: 3px solid #b22234; /* American Red accents */
+}
+img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.bar-container {
+  margin: 10px 0;
+  text-align: left;
+}
+.bar-label {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.bar {
+  height: 18px;
+  background: #3c3b6e; /* American Blue accents */
+  color: white;
+  border-radius: 10px;
+  width: 0%;
+  transition: width 0.5s;
+  font-size: 12px;
+  text-align: center;
+  line-height: 18px;
+}
+.results {
+  display: block;
+  margin-top: 20px;
+}
+.placeholder-results {
+  font-size: 14px;
+  color: #666;
+  font-style: italic;
+  padding: 10px 0;
+}
+.timer-bar {
+  height: 8px;
+  background: #b22234;
+  border-radius: 10px;
+  margin: 15px 0;
+  width: 100%;
+  animation: countdown 4s linear forwards;
+  animation-play-state: paused;
+}
+@keyframes countdown {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+.timer-text {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<h1>This or That? USA Edition</h1>
+
+<div id="quiz_card" class="card active">
+  <h3 id="question_text">Question 1</h3>
+  <div id="image_container" class="choices"></div>
+  <div id="current_results" class="results"></div>
+  <div id="timer" style="display:none;">
+    <div class="timer-text">Next question in:</div>
+    <div id="timer_bar" class="timer-bar"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getFirestore, doc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+// Firebase config configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdTo2AZyAwpqXoStouWrGV0gRmJTODSc",
+  authDomain: "this-or-that-f7dde.firebaseapp.com",
+  projectId: "this-or-that-f7dde",
+  storageBucket: "this-or-that-f7dde.firebasestorage.app",
+  messagingSenderId: "53003348014",
+  appId: "1:53003348014:web:878d7aa43d43e2ac43d7bf"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Exactly 50 uniquely American things
+const questionTexts = [
+  "New York City or Los Angeles?", "NFL Football or MLB Baseball?", "Apple Pie or Chocolate Chip Cookies?",
+  "Grand Canyon or Yellowstone?", "Route 66 or Pacific Coast Highway?", "Burgers or Texas BBQ?",
+  "Broadway Shows or Hollywood Movies?", "Super Bowl or World Series?", "Statue of Liberty or Mount Rushmore?",
+  "Dunkin' or Starbucks?", "Philly Cheesesteak or Chicago Deep Dish?", "Hot Dogs or Buffalo Wings?",
+  "Nascar or Indy 500?", "Disneyland or Disney World?", "Jazz or Country Music?",
+  "Mac and Cheese or Fried Chicken?", "Pancakes or Biscuits and Gravy?", "Fourth of July or Thanksgiving?",
+  "Pickup Trucks or Muscle Cars?", "Las Vegas Strip or Times Square?", "Central Park or Golden Gate Park?",
+  "Rock and Roll or Hip Hop?", "NBA Basketball or NHL Hockey?", "Ranch Dressing or Honey Mustard?",
+  "Clam Chowder or Gumbo?", "Coca-Cola or Dr Pepper?", "S'mores or Peanut Butter Cups?",
+  "Lake Tahoe or The Everglades?", "Mall of America or Wall Street?", "Coachella or Lollapalooza?",
+  "College Football or Tailgating?", "Bagels or Donuts?", "Gatorade or Sweet Tea?",
+  "Cornhole or Beer Pong?", "The White House or The Capitol?", "Corn on the Cob or Mashed Potatoes?",
+  "New Orleans Mardi Gras or NYC New Year's Eve?", "Sourdough Bread or Cornbread?", "Nike or Under Armour?",
+  "Target or Walmart?", "Ford or Chevrolet?", "Ben & Jerry's or Dairy Queen?",
+  "Tater Tots or Onion Rings?", "Smoky Mountains or Rocky Mountains?", "Cape Cod or Key West?",
+  "Drive-in Theaters or Bowling Alleys?", "State Fairs or Rodeos?", "Root Beer Float or Milkshake?",
+  "Bald Eagle or American Bison?", "Gold Rush History or Wild West History?"
+];
+
+const imageTermMap = {
+  "New York City": "new york skyline", "Los Angeles": "los angeles downtown",
+  "NFL Football": "american football", "MLB Baseball": "baseball game",
+  "Apple Pie": "apple pie", "Chocolate Chip Cookies": "chocolate chip cookie",
+  "Grand Canyon": "grand canyon", "Yellowstone": "yellowstone national park",
+  "Route 66": "route 66 highway", "Pacific Coast Highway": "pacific coast highway",
+  "Burgers": "american burger", "Texas BBQ": "texas bbq brisket",
+  "Broadway Shows": "broadway theater", "Hollywood Movies": "hollywood sign",
+  "Super Bowl": "super bowl stadium", "World Series": "baseball world series",
+  "Statue of Liberty": "statue of liberty", "Mount Rushmore": "mount rushmore",
+  "Dunkin'": "donuts coffee", "Starbucks": "iced coffee",
+  "Philly Cheesesteak": "philly cheesesteak", "Chicago Deep Dish": "chicago deep dish pizza",
+  "Hot Dogs": "american hot dog", "Buffalo Wings": "buffalo chicken wings",
+  "Nascar": "nascar race", "Indy 500": "indy car race",
+  "Disneyland": "disneyland castle", "Disney World": "disney world",
+  "Jazz": "jazz saxophone", "Country Music": "country guitar",
+  "Mac and Cheese": "macaroni and cheese", "Fried Chicken": "american fried chicken",
+  "Pancakes": "pancakes syrup", "Biscuits and Gravy": "biscuits and gravy",
+  "Fourth of July": "fireworks 4th of july", "Thanksgiving": "thanksgiving turkey",
+  "Pickup Trucks": "american pickup truck", "Muscle Cars": "classic muscle car",
+  "Las Vegas Strip": "las vegas strip", "Times Square": "times square",
+  "Central Park": "central park new york", "Golden Gate Park": "golden gate bridge",
+  "Rock and Roll": "rock concert guitar", "Hip Hop": "hip hop dance",
+  "NBA Basketball": "nba basketball game", "NHL Hockey": "nhl hockey match",
+  "Ranch Dressing": "ranch dressing", "Honey Mustard": "honey mustard sauce",
+  "Clam Chowder": "clam chowder", "Gumbo": "louisiana gumbo",
+  "Coca-Cola": "coca cola soda", "Dr Pepper": "dr pepper soda",
+  "S'mores": "smores campfire", "Peanut Butter Cups": "peanut butter cup",
+  "Lake Tahoe": "lake tahoe", "The Everglades": "everglades florida",
+  "Mall of America": "mall of america", "Wall Street": "wall street bull",
+  "Coachella": "coachella festival", "Lollapalooza": "lollapalooza festival",
+  "College Football": "college football game", "Tailgating": "tailgate party barbecue",
+  "Bagels": "american bagel", "Donuts": "glazed donuts",
+  "Gatorade": "sports drink", "Sweet Tea": "southern sweet tea",
+  "Cornhole": "cornhole game", "Beer Pong": "beer pong game",
+  "The White House": "the white house washigton", "The Capitol": "us capitol building",
+  "Corn on the Cob": "corn on the cob", "Mashed Potatoes": "mashed potatoes gravy",
+  "New Orleans Mardi Gras": "mardi gras parade", "NYC New Year's Eve": "times square new years eve",
+  "Sourdough Bread": "sourdough bread", "Cornbread": "american cornbread",
+  "Nike": "nike sneakers", "Under Armour": "sports apparel",
+  "Target": "target store shopping", "Walmart": "walmart store",
+  "Ford": "ford mustang", "Chevrolet": "chevrolet corvette",
+  "Ben & Jerry's": "ice cream scoop", "Dairy Queen": "soft serve ice cream",
+  "Tater Tots": "tater tots", "Onion Rings": "crispy onion rings",
+  "Smoky Mountains": "smoky mountains", "Rocky Mountains": "rocky mountains snow",
+  "Cape Cod": "cape cod lighthouse", "Key West": "key west beach",
+  "Drive-in Theaters": "drive in theater screen", "Bowling Alleys": "bowling alley lane",
+  "State Fairs": "state fair ferris wheel", "Rodeos": "rodeo cowboy bull",
+  "Root Beer Float": "root beer float", "Milkshake": "classic milkshake cherry",
+  "Bald Eagle": "bald eagle", "American Bison": "american bison buffalo",
+  "Gold Rush History": "gold panning mining", "Wild West History": "wild west town cowboy"
+};
+
+function lookupImageTerm(label) {
+  return imageTermMap[label] || label.replace(/\s+/g, "-");
+}
+
+function makeOptionsFromQuestion(text) {
+  const clean = text.trim().replace(/[?!.]+$/, "");
+  const parts = clean.split(/\s+or\s+/i).map((part) => part.trim());
+  return parts.slice(0, 2).map((label, idx) => {
+    const optionId = label.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "");
+    const term = lookupImageTerm(label);
+    return {
+      id: optionId || `usa-opt${idx + 1}`,
+      label,
+      imageUrl: `https://loremflickr.com/400/300/${encodeURIComponent(term)}?random=${idx}`,
+      fallbackUrl: `https://picsum.photos/seed/${encodeURIComponent(term)}/400/300`
+    };
+  });
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+const questions = shuffleArray(questionTexts.map((text, i) => ({
+  id: `usa_question${i + 1}`,
+  question: text,
+  options: makeOptionsFromQuestion(text)
+})));
+
+let currentQuestionIndex = 0;
+let currentUnsubscribe = null;
+
+async function vote(questionId, choice) {
+  if (localStorage.getItem(questionId + "_voted")) return;
+
+  localStorage.setItem(questionId + "_voted", choice);
+
+  const timerDiv = document.getElementById("timer");
+  const timerBar = document.getElementById("timer_bar");
+  if (timerDiv) timerDiv.style.display = "block";
+  if (timerBar) {
+    timerBar.style.animation = "none";
+    timerBar.offsetWidth; // Trigger reflow
+    timerBar.style.animation = "countdown 4s linear forwards";
+    timerBar.style.animationPlayState = "running";
+  }
+
+  const nextQuestionIndex = (currentQuestionIndex + 1) % questions.length;
+  setTimeout(() => {
+    currentQuestionIndex = nextQuestionIndex;
+    showQuestion(currentQuestionIndex);
+    if (timerDiv) timerDiv.style.display = "none";
+    if (timerBar) timerBar.style.animationPlayState = "paused";
+  }, 4000);
+
+  try {
+    const ref = doc(db, "votes", questionId);
+    await setDoc(ref, {}, { merge: true });
+    await updateDoc(ref, {
+      [choice]: increment(1)
+    });
+  } catch (error) {
+    console.error("Vote update failed:", error);
+  }
+}
+
+function listenToResults(questionId) {
+  if (currentUnsubscribe) currentUnsubscribe();
+
+  const question = questions.find(q => q.id === questionId);
+  if (!question) return;
+
+  const ref = doc(db, "votes", questionId);
+  currentUnsubscribe = onSnapshot(ref, (snap) => {
+    const resultDiv = document.getElementById("current_results");
+    if (!resultDiv) return;
+
+    const voted = localStorage.getItem(questionId + "_voted");
+
+    if (!voted) {
+      resultDiv.innerHTML = `<div class="placeholder-results">Vote to see live results!</div>`;
+      return;
+    }
+
+    const data = snap.data() || {};
+    let total = 0;
+    question.options.forEach(opt => {
+      total += data[opt.id] || 0;
+    });
+
+    let html = "";
+    question.options.forEach(opt => {
+      const votes = data[opt.id] || 0;
+      const percent = total ? Math.round((votes / total) * 100) : 0;
+      
+      html += `<div class="bar-container">`;
+      html += `  <div class="bar-label"><strong>${opt.label}</strong>: ${votes} vote${votes === 1 ? '' : 's'}</div>`;
+      html += `  <div class="bar" style="width:${percent}%">${percent}%</div>`;
+      html += `</div>`;
+    });
+
+    resultDiv.innerHTML = html;
+
+    const selectedEl = document.getElementById(`${questionId}_${voted}`);
+    if (selectedEl) selectedEl.classList.add("selected");
+  });
+}
+
+function showQuestion(index) {
+  const question = questions[index];
+  const questionText = document.getElementById("question_text");
+  const imageContainer = document.getElementById("image_container");
+  const resultDiv = document.getElementById("current_results");
+  const timerDiv = document.getElementById("timer");
+  const timerBar = document.getElementById("timer_bar");
+
+  if (!questionText || !imageContainer || !resultDiv || !timerDiv || !timerBar) return;
+
+  questionText.textContent = question.question;
+  imageContainer.innerHTML = "";
+  resultDiv.innerHTML = "Loading...";
+  timerDiv.style.display = "none";
+  timerBar.style.animation = "none";
+  timerBar.offsetWidth; // Trigger reflow
+  timerBar.style.animation = "countdown 4s linear forwards";
+  timerBar.style.animationPlayState = "paused";
+
+  question.options.forEach((optionData) => {
+    const option = document.createElement("div");
+    option.className = "option";
+    option.id = `${question.id}_${optionData.id}`;
+    option.onclick = () => vote(question.id, optionData.id);
+
+    const img = document.createElement("img");
+    img.src = optionData.imageUrl;
+    img.alt = optionData.label;
+    img.dataset.fallbackUrl = optionData.fallbackUrl;
+    img.dataset.fallbackTried = "false";
+    img.onerror = () => {
+      if (img.dataset.fallbackTried === "false" && img.dataset.fallbackUrl) {
+        img.dataset.fallbackTried = "true";
+        img.src = img.dataset.fallbackUrl;
+        return;
+      }
+      img.onerror = null;
+      img.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
+          <rect width="100%" height="100%" rx="20" ry="20" fill="#999999" />
+          <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
+                font-family="Arial, sans-serif" font-size="24" fill="#ffffff">
+            Image unavailable
+          </text>
+        </svg>`)}`;
+    };
+    option.appendChild(img);
+
+    const label = document.createElement("p");
+    label.innerHTML = `<b>${optionData.label}</b>`;
+    option.appendChild(label);
+
+    imageContainer.appendChild(option);
+  });
+
+  const voted = localStorage.getItem(question.id + "_voted");
+  if (voted) {
+    const selectedEl = document.getElementById(`${question.id}_${voted}`);
+    if (selectedEl) selectedEl.classList.add("selected");
+  }
+
+  listenToResults(question.id);
+}
+
+showQuestion(currentQuestionIndex);
+window.vote = vote;
+</script>
+
+</body>
+</html>

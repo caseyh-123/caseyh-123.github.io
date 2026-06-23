@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>This or That? - Home</title>
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.5s ease;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    color: #333;
+    margin-bottom: 10px;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.6);
+  }
+
+  .subtitle {
+    font-size: 1.2rem;
+    color: #555;
+    margin-bottom: 40px;
+  }
+
+  .grid-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 25px;
+    max-width: 700px;
+    width: 90%;
+    padding: 20px;
+  }
+
+  .quiz-card {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    text-decoration: none;
+    color: #333;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .quiz-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  }
+
+  .quiz-card img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .quiz-card h3 {
+    margin: 15px 0;
+    font-size: 1.3rem;
+  }
+
+  /* Responsive layout for mobile phones */
+  @media (max-width: 600px) {
+    .grid-container {
+      grid-template-columns: 1fr;
+    }
+    h1 {
+      font-size: 2rem;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <h1>This or That?</h1>
+  <div class="subtitle">Pick a category and cast your vote!</div>
+
+  <div class="grid-container">
+    
+    <a href="general.html" class="quiz-card">
+      <img src="https://images.unsplash.com/photo-1518133295134-7abc51255f39?w=500&q=80" alt="General Trivia">
+      <h3>General Edition</h3>
+    </a>
+
+    <a href="american.html" class="quiz-card">
+      <img src="https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=500&q=80" alt="USA Flag and Landscape">
+      <h3>American Edition</h3>
+    </a>
+
+    <a href="australian.html" class="quiz-card">
+      <img src="https://images.unsplash.com/photo-1524820197278-540916411e20?w=500&q=80" alt="Australian Outback and Wildlife">
+      <h3>Aussie Edition</h3>
+    </a>
+
+    <a href="english.html" class="quiz-card">
+      <img src="https://images.unsplash.com/photo-1513635269975-59663e0ca1ad?w=500&q=80" alt="London Big Ben">
+      <h3>England Edition</h3>
+    </a>
+
+  </div>
+
+  <script>
+    // Array of nice looking pastel/soft colors to keep readability high
+    const backgroundColors = [
+      '#dff5e1', // Soft green (from original)
+      '#f0f4f8', // Soft gray-blue (from American)
+      '#fff9e6', // Soft cream-gold (from Aussie)
+      '#f7f9fc', // Soft ice-blue (from England)
+      '#ffebeb', // Soft pinkish-red
+      '#f3e8ff', // Soft lavender
+      '#e0f7fa'  // Soft cyan
+    ];
+
+    // Select a random index from the array
+    const randomIndex = Math.floor(Math.random() * backgroundColors.length);
+    
+    // Apply the chosen background color to the body
+    document.body.style.backgroundColor = backgroundColors[randomIndex];
+  </script>
+
+</body>
+</html>

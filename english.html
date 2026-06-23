@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>This or That? England Edition</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f7f9fc; /* Clean, modern light gray-blue background */
+  text-align: center;
+}
+h1 {
+  padding: 20px;
+  color: #0b2265; /* English Royal Navy Blue */
+}
+.card {
+  display: none;
+  background: white;
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+.card.active {
+  display: block;
+}
+.choices {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.option {
+  width: 48%;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 8px;
+  border: 3px solid transparent;
+  transition: transform 0.2s;
+}
+.option:hover {
+  transform: scale(1.05);
+}
+.selected {
+  border: 3px solid #ce1126; /* St George's Crimson Cross highlight */
+}
+img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.bar-container {
+  margin: 10px 0;
+  text-align: left;
+}
+.bar-label {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.bar {
+  height: 18px;
+  background: #0b2265; /* Navy progress bar */
+  color: white;
+  border-radius: 10px;
+  width: 0%;
+  transition: width 0.5s;
+  font-size: 12px;
+  text-align: center;
+  line-height: 18px;
+}
+.results {
+  display: block;
+  margin-top: 20px;
+}
+.placeholder-results {
+  font-size: 14px;
+  color: #666;
+  font-style: italic;
+  padding: 10px 0;
+}
+.timer-bar {
+  height: 8px;
+  background: #ce1126; /* Crimson countdown bar */
+  border-radius: 10px;
+  margin: 15px 0;
+  width: 100%;
+  animation: countdown 4s linear forwards;
+  animation-play-state: paused;
+}
+@keyframes countdown {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+.timer-text {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<h1>This or That? England Edition</h1>
+
+<div id="quiz_card" class="card active">
+  <h3 id="question_text">Question 1</h3>
+  <div id="image_container" class="choices"></div>
+  <div id="current_results" class="results"></div>
+  <div id="timer" style="display:none;">
+    <div class="timer-text">Next question in:</div>
+    <div id="timer_bar" class="timer-bar"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getFirestore, doc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+// Firebase config configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdTo2AZyAwpqXoStouWrGV0gRmJTODSc",
+  authDomain: "this-or-that-f7dde.firebaseapp.com",
+  projectId: "this-or-that-f7dde",
+  storageBucket: "this-or-that-f7dde.firebasestorage.app",
+  messagingSenderId: "53003348014",
+  appId: "1:53003348014:web:878d7aa43d43e2ac43d7bf"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Exactly 50 uniquely English things
+const questionTexts = [
+  "London or Manchester?", "Yorkshire Tea or PG Tips?", "Fish and Chips or Sunday Roast?",
+  "Jaffa Cakes or Digestives?", "Premier League Footy or Test Cricket?", "The Lake District or The Cotswolds?",
+  "Stonehenge or Tower of London?", "Full English Breakfast or Bacon Butty?", "Cadbury Dairy Milk or Galaxy?",
+  "Cornish Pasty or Sausage Roll?", "Scones: Cream First or Jam First?", "Pub Roast or Curry Night?",
+  "Giggsy and Beckham or Kane and Bellingham?", "Black Cabs or Red Double Decker Buses?", "The Beatles or Oasis?",
+  "Glastonbury or Reading Festival?", "Pints of Ale or Gin and Tonic?", "Walkers Crisps or Monster Munch?",
+  "Brown Sauce or Tomato Ketchup?", "Crumpets or English Muffins?", "White Cliffs of Dover or Cornwall Coast?",
+  "FA Cup Final or Wimbledon Final?", "Robbie Williams or Ed Sheeran?", "Sticky Toffee Pudding or Apple Crumble?",
+  "Gravy on Chips or Curry Sauce on Chips?", "Wetherspoons or Traditional Local Pub?", "Rainy Sunday or Overcast Beach Day?",
+  "Brighton Pier or Blackpool Illuminations?", "Sherlock Holmes or James Bond?", "St Paul's Cathedral or York Minster?",
+  "Premier Inn or Travelodge?", "Cheshire Cheese or Stilton?", "Sausage and Mash or Shepherd's Pie?",
+  "Marks & Spencer or Waitrose?", "Greggs or Pret A Manger?", "Heinz Baked Beans or Branston Pickle?",
+  "The Underground or Driving on the Left?", "David Attenborough or Stephen Fry?", "Top Gear or Doctor Who?",
+  "Mr Bean or Wallace & Gromit?", "Royal Ascot or Cheltenham Festival?", "Eton Mess or Trifle?",
+  "Pancake Day or Bonfire Night?", "Conkers or Cricket in the Park?", "Barbour Jacket or Trench Coat?",
+  "Buckingham Palace or Windsor Castle?", "Hadrian's Wall or New Forest?", "Scotch Egg or Pork Pie?",
+  "Morris Dancing or Pub Quiz?", "The Peak District or Yorkshire Dales?"
+];
+
+const imageTermMap = {
+  "London": "london big ben tower bridge", "Manchester": "manchester city centre",
+  "Yorkshire Tea": "cup of english tea", "PG Tips": "tea bag mug",
+  "Fish and Chips": "british fish and chips paper", "Sunday Roast": "sunday roast beef gravy yorkshire pudding",
+  "Jaffa Cakes": "jaffa cakes chocolate", "Digestives": "digestive biscuits british",
+  "Premier League Footy": "premier league football match stadium", "Test Cricket": "lords test cricket match lord's",
+  "The Lake District": "lake district cumbria", "The Cotswolds": "cotswolds stone cottage village",
+  "Stonehenge": "stonehenge wiltshire england", "Tower of London": "tower of london castle",
+  "Full English Breakfast": "full english breakfast fry up", "Bacon Butty": "bacon sandwich butty ketchup",
+  "Cadbury Dairy Milk": "cadbury chocolate bar", "Galaxy": "galaxy chocolate smooth",
+  "Cornish Pasty": "cornish pasty traditional", "Sausage Roll": "british sausage roll pastry",
+  "Cream First": "scone clotted cream jam", "Jam First": "scone strawberry jam cream",
+  "Pub Roast": "traditional pub roast dinner", "Curry Night": "chicken tikka masala naan curry",
+  "Giggsy and Beckham": "manchester united 90s vintage football", "Kane and Bellingham": "england football national team",
+  "Black Cabs": "london black cab taxi", "Red Double Decker Buses": "london double decker bus",
+  "The Beatles": "the beatles vinyl music rock", "Oasis": "oasis band music rock britpop",
+  "Glastonbury": "glastonbury festival pyramid stage crowd", "Reading Festival": "reading music festival stage crowd",
+  "Pints of Ale": "pint of english ale beer pub", "Gin and Tonic": "gin and tonic glass ice botanicals",
+  "Walkers Crisps": "potato crisps bag snacks", "Monster Munch": "pickled onion crisps snacks",
+  "Brown Sauce": "hp brown sauce bottle breakfast", "Tomato Ketchup": "red tomato ketchup bottle sauce",
+  "Crumpets": "crumpets toasted melted butter", "English Muffins": "toasted english muffin",
+  "White Cliffs of Dover": "white cliffs of dover kent coast", "Cornwall Coast": "cornwall coast beach ocean rocks",
+  "FA Cup Final": "fa cup trophy wembley stadium football", "Wimbledon Final": "wimbledon tennis centre court grass",
+  "Robbie Williams": "robbie williams singer concert pop", "Ed Sheeran": "ed sheeran acoustic guitar concert",
+  "Sticky Toffee Pudding": "sticky toffee pudding custard cake", "Apple Crumble": "apple crumble warm custard dessert",
+  "Gravy on Chips": "chips gravy hot fries", "Curry Sauce on Chips": "chips curry sauce chip shop",
+  "Wetherspoons": "british pub interior tables glasses", "Traditional Local Pub": "traditional english country pub exterior beer garden",
+  "Rainy Sunday": "rainy day look through window rainy", "Overcast Beach Day": "english pebble beach grey sky overcast",
+  "Brighton Pier": "brighton pier beach rides carousel", "Blackpool Illuminations": "blackpool tower illuminations lights",
+  "Sherlock Holmes": "sherlock holmes silhouette pipe hat", "James Bond": "tuxedo suit spy silhouette agent",
+  "St Paul's Cathedral": "st pauls cathedral london dome", "York Minster": "york minster cathedral gothic architecture",
+  "Premier Inn": "purple hotel building modern", "Travelodge": "hotel room bed modern plain",
+  "Cheeshire Cheese": "crumbly white cheese block", "Stilton": "blue stilton cheese wedge wheel",
+  "Sausage and Mash": "bangers and mash sausages gravy peas", "Shepherd's Pie": "shepherds pie mashed potato baked",
+  "Marks & Spencer": "marks and spencer food hall store", "Waitrose": "waitrose supermarket grocery aisle store",
+  "Greggs": "greggs bakery storefront sausage rolls", "Pret A Manger": "pret a manger sandwich coffee shop store",
+  "Heinz Baked Beans": "baked beans on toast plate", "Branston Pickle": "branston pickle jar sandwich cheese",
+  "The Underground": "london underground tube roundel sign train", "Driving on the Left": "driving on left road lane uk",
+  "David Attenborough": "nature documentary wildlife rainforest explorer", "Stephen Fry": "british gentleman suit library bookshelf",
+  "Top Gear": "sports car driving fast race track road", "Doctor Who": "blue police box tardis sci-fi",
+  "Mr Bean": "classic mini green car vintage british", "Wallace & Gromit": "claymation cheese moon inventor animation",
+  "Royal Ascot": "royal ascot top hat horse racing crowd", "Cheltenham Festival": "cheltenham jump horse racing jockey hurdle",
+  "Eton Mess": "eton mess strawberries cream meringue dessert", "Trifle": "english trifle layers jelly custard cream fruit",
+  "Pancake Day": "flipping pancake pan lemon sugar", "Bonfire Night": "bonfire fireworks night sky 5 november",
+  "Conkers": "conkers horse chestnut string nut", "Cricket in the Park": "amateur village cricket match park green",
+  "Barbour Jacket": "waxed green country jacket coat", "Trench Coat": "classic tan trench coat outerwear fashion",
+  "Buckingham Palace": "buckingham palace gates gates guards london", "Windsor Castle": "windsor castle royal flag fortress",
+  "Hadrian's Wall": "hadrians wall countryside ruins stone", "New Forest": "new forest ponies wild woods trails",
+  "Scotch Egg": "scotch egg halved sausage meat boiled egg", "Pork Pie": "traditional english pork pie crust",
+  "Morris Dancing": "morris dancers handkerchiefs bells traditional england", "Pub Quiz": "pub quiz paper pen pint beer desk",
+  "The Peak District": "peak district hills dales green stone walls", "Yorkshire Dales": "yorkshire dales stone barns green fields ribbons"
+};
+
+function lookupImageTerm(label) {
+  return imageTermMap[label] || label.replace(/\s+/g, "-");
+}
+
+function makeOptionsFromQuestion(text) {
+  const clean = text.trim().replace(/[?!.]+$/, "");
+  const parts = clean.split(/\s+or\s+/i).map((part) => part.trim());
+  return parts.slice(0, 2).map((label, idx) => {
+    const optionId = label.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "");
+    const term = lookupImageTerm(label);
+    return {
+      id: optionId || `eng-opt${idx + 1}`,
+      label,
+      imageUrl: `https://loremflickr.com/400/300/${encodeURIComponent(term)}?random=${idx}`,
+      fallbackUrl: `https://picsum.photos/seed/${encodeURIComponent(term)}/400/300`
+    };
+  });
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+const questions = shuffleArray(questionTexts.map((text, i) => ({
+  id: `eng_question${i + 1}`,
+  question: text,
+  options: makeOptionsFromQuestion(text)
+})));
+
+let currentQuestionIndex = 0;
+let currentUnsubscribe = null;
+
+async function vote(questionId, choice) {
+  if (localStorage.getItem(questionId + "_voted")) return;
+
+  localStorage.setItem(questionId + "_voted", choice);
+
+  const timerDiv = document.getElementById("timer");
+  const timerBar = document.getElementById("timer_bar");
+  if (timerDiv) timerDiv.style.display = "block";
+  if (timerBar) {
+    timerBar.style.animation = "none";
+    timerBar.offsetWidth; // Trigger reflow
+    timerBar.style.animation = "countdown 4s linear forwards";
+    timerBar.style.animationPlayState = "running";
+  }
+
+  const nextQuestionIndex = (currentQuestionIndex + 1) % questions.length;
+  setTimeout(() => {
+    currentQuestionIndex = nextQuestionIndex;
+    showQuestion(currentQuestionIndex);
+    if (timerDiv) timerDiv.style.display = "none";
+    if (timerBar) timerBar.style.animationPlayState = "paused";
+  }, 4000);
+
+  try {
+    const ref = doc(db, "votes", questionId);
+    await setDoc(ref, {}, { merge: true });
+    await updateDoc(ref, {
+      [choice]: increment(1)
+    });
+  } catch (error) {
+    console.error("Vote update failed:", error);
+  }
+}
+
+function listenToResults(questionId) {
+  if (currentUnsubscribe) currentUnsubscribe();
+
+  const question = questions.find(q => q.id === questionId);
+  if (!question) return;
+
+  const ref = doc(db, "votes", questionId);
+  currentUnsubscribe = onSnapshot(ref, (snap) => {
+    const resultDiv = document.getElementById("current_results");
+    if (!resultDiv) return;
+
+    const voted = localStorage.getItem(questionId + "_voted");
+
+    if (!voted) {
+      resultDiv.innerHTML = `<div class="placeholder-results">Vote to see live results!</div>`;
+      return;
+    }
+
+    const data = snap.data() || {};
+    let total = 0;
+    question.options.forEach(opt => {
+      total += data[opt.id] || 0;
+    });
+
+    let html = "";
+    question.options.forEach(opt => {
+      const votes = data[opt.id] || 0;
+      const percent = total ? Math.round((votes / total) * 100) : 0;
+      
+      html += `<div class="bar-container">`;
+      html += `  <div class="bar-label"><strong>${opt.label}</strong>: ${votes} vote${votes === 1 ? '' : 's'}</div>`;
+      html += `  <div class="bar" style="width:${percent}%">${percent}%</div>`;
+      html += `</div>`;
+    });
+
+    resultDiv.innerHTML = html;
+
+    const selectedEl = document.getElementById(`${questionId}_${voted}`);
+    if (selectedEl) selectedEl.classList.add("selected");
+  });
+}
+
+function showQuestion(index) {
+  const question = questions[index];
+  const questionText = document.getElementById("question_text");
+  const imageContainer = document.getElementById("image_container");
+  const resultDiv = document.getElementById("current_results");
+  const timerDiv = document.getElementById("timer");
+  const timerBar = document.getElementById("timer_bar");
+
+  if (!questionText || !imageContainer || !resultDiv || !timerDiv || !timerBar) return;
+
+  questionText.textContent = question.question;
+  imageContainer.innerHTML = "";
+  resultDiv.innerHTML = "Loading...";
+  timerDiv.style.display = "none";
+  timerBar.style.animation = "none";
+  timerBar.offsetWidth; // Trigger reflow
+  timerBar.style.animation = "countdown 4s linear forwards";
+  timerBar.style.animationPlayState = "paused";
+
+  question.options.forEach((optionData) => {
+    const option = document.createElement("div");
+    option.className = "option";
+    option.id = `${question.id}_${optionData.id}`;
+    option.onclick = () => vote(question.id, optionData.id);
+
+    const img = document.createElement("img");
+    img.src = optionData.imageUrl;
+    img.alt = optionData.label;
+    img.dataset.fallbackUrl = optionData.fallbackUrl;
+    img.dataset.fallbackTried = "false";
+    img.onerror = () => {
+      if (img.dataset.fallbackTried === "false" && img.dataset.fallbackUrl) {
+        img.dataset.fallbackTried = "true";
+        img.src = img.dataset.fallbackUrl;
+        return;
+      }
+      img.onerror = null;
+      img.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
+          <rect width="100%" height="100%" rx="20" ry="20" fill="#999999" />
+          <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
+                font-family="Arial, sans-serif" font-size="24" fill="#ffffff">
+            Image unavailable
+          </text>
+        </svg>`)}`;
+    };
+    option.appendChild(img);
+
+    const label = document.createElement("p");
+    label.innerHTML = `<b>${optionData.label}</b>`;
+    option.appendChild(label);
+
+    imageContainer.appendChild(option);
+  });
+
+  const voted = localStorage.getItem(question.id + "_voted");
+  if (voted) {
+    const selectedEl = document.getElementById(`${question.id}_${voted}`);
+    if (selectedEl) selectedEl.classList.add("selected");
+  }
+
+  listenToResults(question.id);
+}
+
+showQuestion(currentQuestionIndex);
+window.vote = vote;
+</script>
+
+</body>
+</html>
